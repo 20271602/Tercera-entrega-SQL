@@ -1,0 +1,187 @@
+-- CCREACION DE TABLAS --
+
+create schema platafroma_cursos_online;
+
+create table curso (
+	id INT NOT NULL AUTO_INCREMENT,
+    inicio INT NOT NULL,
+    finalizacion INT NOT NULL,
+    temario  VARCHAR(200),
+    modalidad VARCHAR(50),
+    precio INT NOT NULL,
+    PRIMARY KEY(id)
+);
+
+create table profesor (
+	id INT NOT NULL AUTO_INCREMENT,
+    nombre VARCHAR(30),
+    edad INT,
+    años_de_experiencia INT,
+    sueldo INT NOT NULL,
+    PRIMARY KEY(id)
+);
+
+create table tutor (
+	id INT NOT NULL AUTO_INCREMENT,
+    nombre VARCHAR(30),
+    edad INT,
+    años_de_experiencia INT,
+    sueldo INT NOT NULL,
+    PRIMARY KEY(id)
+);
+
+create table comisión (
+	id INT NOT NULL AUTO_INCREMENT,
+    id_curso INT NOT NULL,
+    id_profesor INT NOT NULL,
+    id_tutor INT NOT NULL,
+    PRIMARY KEY(id),
+    FOREIGN KEY (id_curso) REFERENCES curso(id),
+    FOREIGN KEY (id_profesor) REFERENCES profesor(id),
+    FOREIGN KEY (id_tutor) REFERENCES tutor(id)
+);
+
+create table alumno (
+	id INT NOT NULL AUTO_INCREMENT,
+    nombre VARCHAR(30),
+    edad INT,
+    mail VARCHAR(50),
+    motivo_de_inscripción VARCHAR(200),
+    PRIMARY KEY(id)
+);
+
+create table inscripción (
+	id INT NOT NULL AUTO_INCREMENT,
+    id_alumno INT NOT NULL,
+    id_comisión INT NOT NULL,
+    PRIMARY KEY(id),
+    FOREIGN KEY (id_alumno) REFERENCES alumno(id),
+    FOREIGN KEY (id_comisión) REFERENCES comisión(id)
+);
+
+create table pago (
+	id INT NOT NULL AUTO_INCREMENT,
+    id_inscripción INT NOT NULL,
+    método_de_pago VARCHAR(50),
+    plan_de_pago VARCHAR(50),
+    código_de_descuento VARCHAR(30),
+    beca INT,
+    PRIMARY KEY(id),
+    FOREIGN KEY (id_inscripción) REFERENCES inscripción(id)
+);
+
+-- Insercion de datos .csv --
+
+select * from curso;
+select * from profesor;
+select * from tutor;
+select * from comisión;
+select * from alumno;
+select * from inscripción;
+select * from pago;
+
+-- CREACION DE VIEWS --
+
+-- Vista para conocer la edad minima de los alumnos que toman los cursos --
+
+CREATE VIEW VistaEdadMinima AS
+SELECT a.id, a.nombre, a.edad
+FROM alumno a
+WHERE edad = (SELECT min(edad) from alumno);
+
+select * from VistaEdadMinima;
+
+-- Vista para conocer la edad maxima de los alumnos que toman los cursos --
+
+CREATE VIEW VistaEdadMaxima AS
+SELECT a.id, a.nombre, a.edad
+FROM alumno a
+WHERE edad = (SELECT max(edad) from alumno);
+
+select * from VistaEdadMaxima;
+
+-- Vista para saber el metodo de pago que utiliza cada alumno --
+
+CREATE VIEW pago_alumno AS
+SELECT a.nombre, p.método_de_pago
+FROM alumo a
+JOIN inscripción ON a.id = inscripción.id
+JOIN pago p ON inscripción.id = p.id;
+
+-- CREACION DE FUNCIONES --
+
+-- Funcion para ver el nivel de experiencia de cada profesor del curso ---
+
+DROP FUNCTION IF EXISTS nivel_de_experiencia;
+
+delimiter //
+CREATE FUNCTION nivel_de_experiencia(años_de_experiencia INT) returns VARCHAR(50) deterministic
+BEGIN
+	case
+    when años_de_experiencia<4 then
+		return 'nivel bajo de experiencia';
+    when años_de_experiencia>= 4 and años_de_experiencia<6 then
+		return 'nivel bajo de experiencia';
+	when años_de_experiencia>= 6 then
+		return 'nivel bajo de experiencia';
+	end case;
+END //
+delimiter ;
+
+
+-- Funcion para saber que curso esta tomando cada alumno --
+
+DELIMITER //
+CREATE PROCEDURE obtener_datos_inscripcion(IN id_inscripcion INT)
+BEGIN
+    SELECT alumno.nombre AS nombre_alumno, comision.nombre AS nombre_comision
+    FROM inscripcion
+    JOIN alumno ON inscripcion.id_alumno = alumno.id
+    JOIN comision ON inscripcion.id_comision = comision.id
+    WHERE inscripcion.id = id_inscripcion;
+END //
+DELIMITER ;
+
+CALL obtener_datos_inscripcion(1);
+  
+-- CREACION DE SOTRED PROCEDURE --
+
+-- Stored Procedure para ordenar a los alumnos por el numero de campo que se ingresa --
+
+DELIMITER //
+CREATE PROCEDURE sp_orden_alumnos (IN field CHAR(20))
+BEGIN
+	IF field <> ' ' THEN
+		SET @orden_nombre = concat('ORDER BY ', field);
+	ELSE
+		SET @orden_nombre = ' ';
+	END IF;
+    
+    SET @clausula = concat('SELECT * FROM ALUMNO ' , @orden_nombre);
+    PREPARE runSQL FROM @clausula;
+    EXECUTE runSQL;
+    DEALLOCATE PREPARE runSQL;
+END //
+DELIMITER ;
+
+
+-- Stored Procedure para actualizar los sueldos de los profesores --
+
+DELIMITER //
+CREATE PROCEDURE ActualizarSueldoProfesor
+    (IN idProfesor VARCHAR(100), IN nuevoSueldo DECIMAL(10, 2))
+BEGIN
+    UPDATE profesor
+    SET sueldo = nuevoSueldo
+    WHERE id = idProfesor;
+END //
+DELIMITER ;
+
+
+-- CREACION DE TRIGGERS --
+
+-- trigger infromativo para el update de nuevos cursos --
+
+CREATE TRIGGER `tr_nuevo_curso` AFTER INSERT ON `curso` FOR EACH ROW
+INSERT INTO `nuevo_curso` (id, temario, modalidad, precio)
+VALUES (NEW.id, NEW.temario, NEW.modalidad, NEW.precio, curdate(), user());
